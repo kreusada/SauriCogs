@@ -68,24 +68,31 @@ class AdvancedLock(commands.Cog):
         await ctx.send("Lock is now disabled.")
 
     @commands.guild_only()
-    @setlock.command(name="setup")
-    async def setlock_setup(self, ctx: commands.Context):
-        """ Go through the initial setup process. """
-        await ctx.send("Do you use roles to access channels? (yes/no)")
-        pred = MessagePredicate.yes_or_no(ctx)
-        try:
-            await self.bot.wait_for("message", timeout=30, check=pred)
-        except asyncio.TimeoutError:
-            return await ctx.send("You took too long. Try again, please.")
-        if not pred.result:  # if no, everyone can see channels
-            await self.config.guild(ctx.guild).everyone.set(True)
+    @setlock.command(name="modrole")
+    async def setlock_modrole(self, ctx: commands.Context, mod_role: discord.Role):
+        """Set the moderator role for advancedlock."""
+        await self.config.guild(ctx.guild).moderator.set(mod_role.id)
+        await ctx.send(f"Done! {mod_role.mention} will be used as the moderator role.")
+
+    @commands.guild_only()
+    @setlock.command(name="useroles")
+    async def setlock_useroles(self, ctx: commands.Context, true_or_false: bool):
+        """Set whether to use roles, or everyone for advanced lock."""
+        await self.config.guild(ctx.guild).everyone.set(true_or_false)
+        if true_or_false:
+            await ctx.send("Roles will be used for advanced lock.")
+        else:
+            await ctx.send("Everyone will be included in an advanced lock.")
             await self.config.guild(ctx.guild).special.clear()
             await self.config.guild(ctx.guild).roles.clear()
             await self.config.guild(ctx.guild).defa.clear()
             await self.config.guild(ctx.guild).def_roles.clear()
             await self.config.guild(ctx.guild).channels.clear_raw()
-        else:  # if yes, only some roles can see channels
-            await self.config.guild(ctx.guild).everyone.set(False)
+
+    @commands.guild_only()
+    @setlock.command(name="setup")
+    async def setlock_setup(self, ctx: commands.Context):
+        """ Go through the initial setup process. """
             await ctx.send(
                 "Do you have different channels that different roles can access? (yes/no)"
             )
@@ -152,17 +159,6 @@ class AdvancedLock(commands.Cog):
                     if not drole_list:
                         return await ctx.send("Invalid answer, canceling.")
                     await self.config.guild(ctx.guild).def_roles.set(drole_list)
-        await ctx.send("What is your Moderator role?")
-        role = MessagePredicate.valid_role(ctx)
-        try:
-            await self.bot.wait_for("message", timeout=30, check=role)
-        except asyncio.TimeoutError:
-            return await ctx.send("You took too long. Try again, please.")
-        mod_role = role.result
-        await self.config.guild(ctx.guild).moderator.set(mod_role.id)
-        await self.config.guild(ctx.guild).has_been_set.set(True)
-
-        await ctx.send("You have finished the setup!")
 
     @commands.guild_only()
     @setlock.command(name="add")
