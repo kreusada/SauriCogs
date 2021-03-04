@@ -93,18 +93,57 @@ class AdvancedLock(commands.Cog):
     @setlock.command(name="setup")
     async def setlock_setup(self, ctx: commands.Context):
         """ Go through the initial setup process. """
+        await ctx.send(
+            "Do you have different channels that different roles can access? (yes/no)"
+        )
+        try:
+            await self.bot.wait_for("message", timeout=30, check=pred)
+        except asyncio.TimeoutError:
+            return await ctx.send("You took too long. Try again, please.")
+        if not pred.result:  # if not, all special roles can see same channels
+            await self.config.guild(ctx.guild).special.set(False)
+            arole_list = []
             await ctx.send(
-                "Do you have different channels that different roles can access? (yes/no)"
+                "You answered no but you answered yes to `Do you use roles to access channels?`\nWhat roles can access your channels? (Must be **comma separated**)"
+            )
+
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel
+
+            try:
+                answer = await self.bot.wait_for(
+                    "message", timeout=120, check=check
+                )
+            except asyncio.TimeoutError:
+                return await ctx.send("You took too long. Try again, please.")
+            arole_list = await self._get_roles_from_content(ctx, answer.content)
+            if not arole_list:
+                return await ctx.send("Invalid answer, canceling.")
+            await self.config.guild(ctx.guild).roles.set(arole_list)
+        else:  # if yes, some roles can see some channels, some other roles can see some other channels
+            await self.config.guild(ctx.guild).special.set(True)
+            await self.config.guild(ctx.guild).roles.clear()
+            await ctx.send(
+                f"**Use `{ctx.clean_prefix}setlock add` to add a channel.**"
+            )
+            await ctx.send(
+                "Would you like to add default value for when a channel isn't specified? (yes/no)"
             )
             try:
                 await self.bot.wait_for("message", timeout=30, check=pred)
             except asyncio.TimeoutError:
                 return await ctx.send("You took too long. Try again, please.")
-            if not pred.result:  # if not, all special roles can see same channels
-                await self.config.guild(ctx.guild).special.set(False)
-                arole_list = []
+            if not pred.result:  # if no, it will give an error
                 await ctx.send(
-                    "You answered no but you answered yes to `Do you use roles to access channels?`\nWhat roles can access your channels? (Must be **comma separated**)"
+                    f"Okay, `{ctx.clean_prefix}lock` will give an error and will not lock a channel if the channel hasn't been added."
+                )
+                await self.config.guild(ctx.guild).defa.set(False)
+                await self.config.guild(ctx.guild).def_roles.clear()
+            else:  # if yes, lock will do default perms
+                await self.config.guild(ctx.guild).defa.set(True)
+                drole_list = []
+                await ctx.send(
+                    "What are the default roles that can access your channels? (Must be **comma separated**)"
                 )
 
                 def check(m):
@@ -116,49 +155,10 @@ class AdvancedLock(commands.Cog):
                     )
                 except asyncio.TimeoutError:
                     return await ctx.send("You took too long. Try again, please.")
-                arole_list = await self._get_roles_from_content(ctx, answer.content)
-                if not arole_list:
+                drole_list = await self._get_roles_from_content(ctx, answer.content)
+                if not drole_list:
                     return await ctx.send("Invalid answer, canceling.")
-                await self.config.guild(ctx.guild).roles.set(arole_list)
-            else:  # if yes, some roles can see some channels, some other roles can see some other channels
-                await self.config.guild(ctx.guild).special.set(True)
-                await self.config.guild(ctx.guild).roles.clear()
-                await ctx.send(
-                    f"**Use `{ctx.clean_prefix}setlock add` to add a channel.**"
-                )
-                await ctx.send(
-                    "Would you like to add default value for when a channel isn't specified? (yes/no)"
-                )
-                try:
-                    await self.bot.wait_for("message", timeout=30, check=pred)
-                except asyncio.TimeoutError:
-                    return await ctx.send("You took too long. Try again, please.")
-                if not pred.result:  # if no, it will give an error
-                    await ctx.send(
-                        f"Okay, `{ctx.clean_prefix}lock` will give an error and will not lock a channel if the channel hasn't been added."
-                    )
-                    await self.config.guild(ctx.guild).defa.set(False)
-                    await self.config.guild(ctx.guild).def_roles.clear()
-                else:  # if yes, lock will do default perms
-                    await self.config.guild(ctx.guild).defa.set(True)
-                    drole_list = []
-                    await ctx.send(
-                        "What are the default roles that can access your channels? (Must be **comma separated**)"
-                    )
-
-                    def check(m):
-                        return m.author == ctx.author and m.channel == ctx.channel
-
-                    try:
-                        answer = await self.bot.wait_for(
-                            "message", timeout=120, check=check
-                        )
-                    except asyncio.TimeoutError:
-                        return await ctx.send("You took too long. Try again, please.")
-                    drole_list = await self._get_roles_from_content(ctx, answer.content)
-                    if not drole_list:
-                        return await ctx.send("Invalid answer, canceling.")
-                    await self.config.guild(ctx.guild).def_roles.set(drole_list)
+                await self.config.guild(ctx.guild).def_roles.set(drole_list)
 
     @commands.guild_only()
     @setlock.command(name="add")
